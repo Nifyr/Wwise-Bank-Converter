@@ -506,12 +506,16 @@ namespace WwiseBankConverter
 
             public override IEnumerable<byte> Serialize()
             {
+                List<byte> b0 = new();
+                releasableHircItemCount = (uint)loadedItem.Count;
+                b0.AddRange(GetBytes(releasableHircItemCount));
+                foreach (HircItem hircItem in loadedItem)
+                    b0.AddRange(hircItem.Serialize());
+                chunkSize = (uint)b0.Count;
+
                 List<byte> b = new();
                 b.AddRange(base.Serialize());
-                releasableHircItemCount = (uint)loadedItem.Count;
-                b.AddRange(GetBytes(releasableHircItemCount));
-                foreach (HircItem hircItem in loadedItem)
-                    b.AddRange(hircItem.Serialize());
+                b.AddRange(b0);
                 return b;
             }
         }
