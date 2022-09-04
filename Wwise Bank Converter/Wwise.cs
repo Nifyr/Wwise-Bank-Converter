@@ -553,10 +553,18 @@ namespace WwiseBankConverter
                         attenuation.Add(hi);
                         continue;
                     }
-                    if (TryAddMediaItem(hi, media, hircLookup))
+                    if (hi is MusicTrack || hi is Sound || hi is MusicSegment ||
+                        hi is MusicRanSeqCntr || hi is MusicSwitchCntr || hi is RanSeqCntr ||
+                        hi is ActorMixer || hi is LayerCntr || hi is SwitchCntr)
+                    {
+                        TryAddMediaItem(hi, media, hircLookup);
                         continue;
-                    if (TryAddEventItem(hi, events, hircLookup))
+                    }
+                    if (hi is Event || hi is Action)
+                    {
+                        TryAddEventItem(hi, events, hircLookup);
                         continue;
+                    }
                 }
 
                 newList.AddRange(attenuation);
