@@ -535,6 +535,9 @@ namespace WwiseBankConverter
 
             private void SortHircItems()
             {
+                if (loadedItem.Any(hi => hi is Bus))
+                    return;
+
                 List<HircItem> newList = new();
 
                 Dictionary<uint, HircItem> hircLookup = new();
