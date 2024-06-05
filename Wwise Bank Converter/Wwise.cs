@@ -14,6 +14,7 @@ namespace WwiseBankConverter
         {
             internal byte[] buffer;
             internal int offset;
+            internal uint version;
             public readonly Dictionary<uint, WwiseObject> objectsByID;
             public List<Bank> banks;
 
@@ -45,25 +46,25 @@ namespace WwiseBankConverter
 
             public byte[] GetBytes()
             {
-                return banks.First().Serialize().ToArray();
+                return banks.First().Serialize(this).ToArray();
             }
 
             public byte[] GetBytes(uint id)
             {
-                return objectsByID[id].Serialize().ToArray();
+                return objectsByID[id].Serialize(this).ToArray();
             }
         }
 
         public interface ISerializable
         {
             public abstract void Deserialize(WwiseData wd);
-            public abstract IEnumerable<byte> Serialize();
+            public abstract IEnumerable<byte> Serialize(WwiseData wd);
         }
 
         public abstract class WwiseObject : ISerializable
         {
             public abstract void Deserialize(WwiseData wd);
-            public abstract IEnumerable<byte> Serialize();
+            public abstract IEnumerable<byte> Serialize(WwiseData wd);
         }
 
         [JsonConverter(typeof(ChunkConverter))]
@@ -97,7 +98,7 @@ namespace WwiseBankConverter
                 return bc;
             }
 
-            public virtual IEnumerable<byte> Serialize()
+            public virtual IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(tag));
@@ -197,7 +198,7 @@ namespace WwiseBankConverter
                 return hi;
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.Add(hircType);
@@ -280,11 +281,11 @@ namespace WwiseBankConverter
                 }
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 foreach (Chunk c in chunks)
-                    b.AddRange(c.Serialize());
+                    b.AddRange(c.Serialize(wd));
                 return b;
             }
         }
@@ -305,15 +306,15 @@ namespace WwiseBankConverter
                 wd.offset += padding;
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
-                b0.AddRange(akBankHeader.Serialize());
+                b0.AddRange(akBankHeader.Serialize(wd));
                 b0.AddRange(new byte[padding]);
                 chunkSize = (uint)b0.Count;
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -331,6 +332,7 @@ namespace WwiseBankConverter
             public void Deserialize(WwiseData wd)
             {
                 bankGeneratorVersion = ReadUInt32(wd);
+                wd.version = bankGeneratorVersion;
                 soundBankID = ReadUInt32(wd);
                 languageID = ReadUInt32(wd);
                 unused = ReadUInt16(wd);
@@ -338,7 +340,7 @@ namespace WwiseBankConverter
                 projectID = ReadUInt32(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(bankGeneratorVersion));
@@ -369,13 +371,13 @@ namespace WwiseBankConverter
                 }
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(tag));
                 List<byte> loadedMediaBuffer = new();
                 foreach (MediaHeader mediaHeader in loadedMedia)
-                    loadedMediaBuffer.AddRange(mediaHeader.Serialize());
+                    loadedMediaBuffer.AddRange(mediaHeader.Serialize(wd));
                 chunkSize = (uint)loadedMediaBuffer.Count;
                 b.AddRange(GetBytes(chunkSize));
                 b.AddRange(loadedMediaBuffer);
@@ -397,7 +399,7 @@ namespace WwiseBankConverter
                 size = ReadUInt32(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(id));
@@ -418,14 +420,14 @@ namespace WwiseBankConverter
                 data = ReadUInt8Array(wd, (int)chunkSize);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
                 b0.AddRange(data);
                 chunkSize = (uint)b0.Count;
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -452,16 +454,16 @@ namespace WwiseBankConverter
                 }
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
                 foreach (ObsOccCurve[] ooca in obsOccCurves)
                     foreach (ObsOccCurve ooc in ooca)
-                        b0.AddRange(ooc.Serialize());
+                        b0.AddRange(ooc.Serialize(wd));
                 chunkSize = (uint)b0.Count;
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -488,7 +490,7 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.Add(curveEnabled);
@@ -496,7 +498,7 @@ namespace WwiseBankConverter
                 curveSize = (ushort)points.Count;
                 b.AddRange(GetBytes(curveSize));
                 foreach (RTPCGraphPoint rtpcgp in points)
-                    b.AddRange(rtpcgp.Serialize());
+                    b.AddRange(rtpcgp.Serialize(wd));
                 return b;
             }
         }
@@ -516,7 +518,7 @@ namespace WwiseBankConverter
                     loadedItem.Add(HircItem.Create(wd));
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 SortHircItems();
 
@@ -524,11 +526,11 @@ namespace WwiseBankConverter
                 releasableHircItemCount = (uint)loadedItem.Count;
                 b0.AddRange(GetBytes(releasableHircItemCount));
                 foreach (HircItem hircItem in loadedItem)
-                    b0.AddRange(hircItem.Serialize());
+                    b0.AddRange(hircItem.Serialize(wd));
                 chunkSize = (uint)b0.Count;
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -647,14 +649,14 @@ namespace WwiseBankConverter
                 propBundle4.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
-                b0.AddRange(propBundle4.Serialize());
+                b0.AddRange(propBundle4.Serialize(wd));
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -679,13 +681,13 @@ namespace WwiseBankConverter
                     pb1.DeserializeValue(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 propsCount = (byte)props.Count;
                 b.AddRange(GetBytes(propsCount));
                 foreach (PropBundle5 pb1 in props)
-                    b.AddRange(pb1.Serialize());
+                    b.AddRange(pb1.Serialize(wd));
                 foreach (PropBundle5 pb1 in props)
                     b.AddRange(pb1.SerializeValue());
                 return b;
@@ -707,7 +709,7 @@ namespace WwiseBankConverter
                 value = ReadSingle(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 return GetBytes(id);
             }
@@ -733,15 +735,15 @@ namespace WwiseBankConverter
                 nodeBaseParams.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
-                b0.AddRange(bankSourceData.Serialize());
-                b0.AddRange(nodeBaseParams.Serialize());
+                b0.AddRange(bankSourceData.Serialize(wd));
+                b0.AddRange(nodeBaseParams.Serialize(wd));
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -761,12 +763,12 @@ namespace WwiseBankConverter
                 mediaInformation.Deserialize(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(pluginID));
                 b.Add(streamType);
-                b.AddRange(mediaInformation.Serialize());
+                b.AddRange(mediaInformation.Serialize(wd));
                 return b;
             }
         }
@@ -791,7 +793,7 @@ namespace WwiseBankConverter
                 hasSource = flags[7];
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(sourceID));
@@ -856,10 +858,10 @@ namespace WwiseBankConverter
                 initialRTPC.Deserialize(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(nodeInitialFxParams.Serialize());
+                b.AddRange(nodeInitialFxParams.Serialize(wd));
                 b.Add(overrideAttachmentParams);
                 b.AddRange(GetBytes(overrideBusId));
                 b.AddRange(GetBytes(directParentID));
@@ -872,12 +874,12 @@ namespace WwiseBankConverter
                     isMidiBreakLoopOnNoteOff
                 };
                 b.Add(GetByte(flags));
-                b.AddRange(nodeInitialParams.Serialize());
-                b.AddRange(positioningParams.Serialize());
-                b.AddRange(auxParams.Serialize());
-                b.AddRange(advSettingsParams.Serialize());
-                b.AddRange(stateChunk.Serialize());
-                b.AddRange(initialRTPC.Serialize());
+                b.AddRange(nodeInitialParams.Serialize(wd));
+                b.AddRange(positioningParams.Serialize(wd));
+                b.AddRange(auxParams.Serialize(wd));
+                b.AddRange(advSettingsParams.Serialize(wd));
+                b.AddRange(stateChunk.Serialize(wd));
+                b.AddRange(initialRTPC.Serialize(wd));
                 return b;
             }
         }
@@ -893,7 +895,7 @@ namespace WwiseBankConverter
                 numFx = ReadUInt8(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.Add(isOverrideParentFX);
@@ -915,11 +917,11 @@ namespace WwiseBankConverter
                 propBundle2.Deserialize(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(propBundle0.Serialize());
-                b.AddRange(propBundle2.Serialize());
+                b.AddRange(propBundle0.Serialize(wd));
+                b.AddRange(propBundle2.Serialize(wd));
                 return b;
             }
         }
@@ -943,13 +945,13 @@ namespace WwiseBankConverter
                     pb1.DeserializeValue(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 propsCount = (byte)props.Count;
                 b.Add(propsCount);
                 foreach (PropBundle1 pb1 in props)
-                    b.AddRange(pb1.Serialize());
+                    b.AddRange(pb1.Serialize(wd));
                 foreach (PropBundle1 pb1 in props)
                     b.AddRange(pb1.SerializeValue());
                 return b;
@@ -971,7 +973,7 @@ namespace WwiseBankConverter
                 value = ReadSingle(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 return new byte[] { id };
             }
@@ -1001,13 +1003,13 @@ namespace WwiseBankConverter
                     pb3.DeserializeBoundaries(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 propsCount = (byte)props.Count;
                 b.Add(propsCount);
                 foreach (PropBundle3 pb3 in props)
-                    b.AddRange(pb3.Serialize());
+                    b.AddRange(pb3.Serialize(wd));
                 foreach (PropBundle3 pb3 in props)
                     b.AddRange(pb3.SerializeBoundaries());
                 return b;
@@ -1031,7 +1033,7 @@ namespace WwiseBankConverter
                 max = ReadUInt8Array(wd, 4);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 return new byte[] { id };
             }
@@ -1050,6 +1052,7 @@ namespace WwiseBankConverter
             public bool positioningInfoOverrideParent;
             public bool hasListenerRelativeRouting;
             public bool pannerType;
+            public bool is3DPositioningAvailable;
             public bool _3DPositionType;
             public bool spatializationMode;
             public bool unkFlag1;
@@ -1058,6 +1061,14 @@ namespace WwiseBankConverter
             public bool holdListenerOrient;
             public bool enableDiffraction;
             public bool unkFlag7;
+            public bool spatializationMode3D0;
+            public bool spatializationMode3D1;
+            public bool spatializationMode3D2;
+            public bool holdEmitterPosAndOrient3D;
+            public bool holdListenerOrient3D;
+            public bool unk3DFlag5;
+            public bool unk3DFlag6;
+            public uint attenuationID;
 
             public void Deserialize(WwiseData wd)
             {
@@ -1065,34 +1076,67 @@ namespace WwiseBankConverter
                 positioningInfoOverrideParent = flags0[0];
                 hasListenerRelativeRouting = flags0[1];
                 pannerType = flags0[2];
+                is3DPositioningAvailable = flags0[4];
                 _3DPositionType = flags0[5];
-                if (hasListenerRelativeRouting)
+                if (wd.version > 128)
                 {
-                    bool[] flags1 = ReadFlags(wd);
-                    spatializationMode = flags1[0];
-                    unkFlag1 = flags1[1];
-                    enableAttenuation = flags1[3];
-                    holdEmitterPosAndOrient = flags1[4];
-                    holdListenerOrient = flags1[5];
-                    enableDiffraction = flags1[6];
-                    unkFlag7 = flags1[7];
+                    if (hasListenerRelativeRouting)
+                        DeserializeLRR(wd);
                 }
+                if (is3DPositioningAvailable)
+                    Deserialize3DP(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            private void DeserializeLRR(WwiseData wd)
+            {
+                bool[] flags1 = ReadFlags(wd);
+                spatializationMode = flags1[0];
+                unkFlag1 = flags1[1];
+                enableAttenuation = flags1[3];
+                holdEmitterPosAndOrient = flags1[4];
+                holdListenerOrient = flags1[5];
+                enableDiffraction = flags1[6];
+                unkFlag7 = flags1[7];
+            }
+
+            private void Deserialize3DP(WwiseData wd)
+            {
+                bool[] flags1 = ReadFlags(wd);
+                spatializationMode3D0 = flags1[0];
+                spatializationMode3D1 = flags1[1];
+                spatializationMode3D2 = flags1[2];
+                holdEmitterPosAndOrient3D = flags1[3];
+                holdListenerOrient3D = flags1[4];
+                unk3DFlag5 = flags1[5];
+                unk3DFlag6 = flags1[6];
+                attenuationID = ReadUInt32(wd);
+            }
+
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 bool[] flags0 = {
                     positioningInfoOverrideParent,
                     hasListenerRelativeRouting,
                     pannerType,
-                    false, false,
+                    false,
+                    is3DPositioningAvailable,
                     _3DPositionType
                 };
                 b.Add(GetByte(flags0));
-                if (hasListenerRelativeRouting)
+                if (wd.version > 128)
                 {
-                    bool[] flags1 = {
+                    if (hasListenerRelativeRouting)
+                        SerializeLRR(b);
+                }
+                if (is3DPositioningAvailable)
+                    Serialize3DP(b);
+                return b;
+            }
+
+            private void SerializeLRR(List<byte> b)
+            {
+                bool[] flags1 = {
                         spatializationMode,
                         unkFlag1,
                         false,
@@ -1102,9 +1146,23 @@ namespace WwiseBankConverter
                         enableDiffraction,
                         unkFlag7
                     };
-                    b.Add(GetByte(flags1));
-                }
-                return b;
+                b.Add(GetByte(flags1));
+            }
+
+            private void Serialize3DP(List<byte> b)
+            {
+                bool[] flags1 = {
+                    spatializationMode3D0,
+                    spatializationMode3D1,
+                    spatializationMode3D2,
+                    holdEmitterPosAndOrient3D,
+                    holdListenerOrient3D,
+                    unk3DFlag5,
+                    unk3DFlag6,
+                    false
+                };
+                b.Add(GetByte(flags1));
+                b.AddRange(GetBytes(attenuationID));
             }
         }
 
@@ -1132,10 +1190,11 @@ namespace WwiseBankConverter
                     for (int i = 0; i < 4; i++)
                         auxIDs[i] = ReadUInt32(wd);
                 }
-                reflectionsAuxBus = ReadUInt32(wd);
+                if (wd.version > 128)
+                    reflectionsAuxBus = ReadUInt32(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 bool[] flags = {
@@ -1149,7 +1208,8 @@ namespace WwiseBankConverter
                 if (auxIDs != null)
                     foreach (uint i in auxIDs)
                         b.AddRange(GetBytes(i));
-                b.AddRange(GetBytes(reflectionsAuxBus));
+                if (wd.version > 128)
+                    b.AddRange(GetBytes(reflectionsAuxBus));
                 return b;
             }
         }
@@ -1187,7 +1247,7 @@ namespace WwiseBankConverter
                 enableEnvelope = flags1[3];
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 bool[] flags0 = {
@@ -1239,17 +1299,17 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 statePropsCount = (ulong)stateProps.Count;
                 b.AddRange(GetVariableIntBytes(statePropsCount));
                 foreach (StatePropertyInfo spi in stateProps)
-                    b.AddRange(spi.Serialize());
+                    b.AddRange(spi.Serialize(wd));
                 stateGroupsCount = (ulong)stateChunks.Count;
                 b.AddRange(GetVariableIntBytes(stateGroupsCount));
                 foreach (StateGroupChunk sgc in stateChunks)
-                    b.AddRange(sgc.Serialize());
+                    b.AddRange(sgc.Serialize(wd));
                 return b;
             }
         }
@@ -1267,7 +1327,7 @@ namespace WwiseBankConverter
                 inDb = ReadUInt8(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetVariableIntBytes(propertyID));
@@ -1298,7 +1358,7 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(stateGroupID));
@@ -1306,7 +1366,7 @@ namespace WwiseBankConverter
                 statesCount = (ulong)states.Count;
                 b.AddRange(GetVariableIntBytes(statesCount));
                 foreach (AkState s in states)
-                    b.AddRange(s.Serialize());
+                    b.AddRange(s.Serialize(wd));
                 return b;
             }
         }
@@ -1322,7 +1382,7 @@ namespace WwiseBankConverter
                 stateInstanceID = ReadUInt32(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(stateID));
@@ -1348,13 +1408,13 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 rtpcCount = (ushort)pRTPCMgr.Count;
                 b.AddRange(GetBytes(rtpcCount));
                 foreach (RTPC rtpc in pRTPCMgr)
-                    b.AddRange(rtpc.Serialize());
+                    b.AddRange(rtpc.Serialize(wd));
                 return b;
             }
         }
@@ -1389,7 +1449,7 @@ namespace WwiseBankConverter
                 }
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(rtpcID));
@@ -1401,7 +1461,7 @@ namespace WwiseBankConverter
                 size = (ushort)pRTPCMgr.Count;
                 b.AddRange(GetBytes(size));
                 foreach (RTPCGraphPoint rtpcgp in pRTPCMgr)
-                    b.AddRange(rtpcgp.Serialize());
+                    b.AddRange(rtpcgp.Serialize(wd));
                 return b;
             }
         }
@@ -1462,15 +1522,15 @@ namespace WwiseBankConverter
                 propBundle1.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(GetBytes(actionType));
                 b.AddRange(GetBytes(idExt));
                 b.Add(isBus);
-                b.AddRange(propBundle0.Serialize());
-                b.AddRange(propBundle1.Serialize());
+                b.AddRange(propBundle0.Serialize(wd));
+                b.AddRange(propBundle1.Serialize(wd));
                 return b;
             }
         }
@@ -1555,13 +1615,13 @@ namespace WwiseBankConverter
                 exceptParams.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.Add(fadeCurve);
-                b.AddRange(stopActionSpecificParams.Serialize());
-                b.AddRange(exceptParams.Serialize());
+                b.AddRange(stopActionSpecificParams.Serialize(wd));
+                b.AddRange(exceptParams.Serialize(wd));
                 return b;
             }
         }
@@ -1578,7 +1638,7 @@ namespace WwiseBankConverter
                 applyToDynamicSequence = flags[2];
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 bool[] flags = { false,
@@ -1607,13 +1667,13 @@ namespace WwiseBankConverter
                 exceptParams.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.Add(fadeCurve);
-                b.AddRange(pauseActionSpecificParams.Serialize());
-                b.AddRange(exceptParams.Serialize());
+                b.AddRange(pauseActionSpecificParams.Serialize(wd));
+                b.AddRange(exceptParams.Serialize(wd));
                 return b;
             }
         }
@@ -1632,7 +1692,7 @@ namespace WwiseBankConverter
                 applyToDynamicSequence = flags[2];
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 bool[] flags = {
@@ -1662,13 +1722,13 @@ namespace WwiseBankConverter
                 exceptParams.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.Add(fadeCurve);
-                b.AddRange(resumeActionSpecificParams.Serialize());
-                b.AddRange(exceptParams.Serialize());
+                b.AddRange(resumeActionSpecificParams.Serialize(wd));
+                b.AddRange(exceptParams.Serialize(wd));
                 return b;
             }
         }
@@ -1687,7 +1747,7 @@ namespace WwiseBankConverter
                 applyToDynamicSequence = flags[2];
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 bool[] flags = {
@@ -1713,10 +1773,10 @@ namespace WwiseBankConverter
                 bankID = ReadUInt32(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.Add(fadeCurve);
                 b.AddRange(GetBytes(bankID));
                 return b;
@@ -1737,12 +1797,12 @@ namespace WwiseBankConverter
                 exceptParams.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.Add(fadeCurve);
-                b.AddRange(exceptParams.Serialize());
+                b.AddRange(exceptParams.Serialize(wd));
                 return b;
             }
         }
@@ -1764,13 +1824,13 @@ namespace WwiseBankConverter
                 exceptParams.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.Add(fadeCurve);
-                b.AddRange(akPropActionSpecificParams.Serialize());
-                b.AddRange(exceptParams.Serialize());
+                b.AddRange(akPropActionSpecificParams.Serialize(wd));
+                b.AddRange(exceptParams.Serialize(wd));
                 return b;
             }
         }
@@ -1787,11 +1847,11 @@ namespace WwiseBankConverter
                 randomizerModifier.Deserialize(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.Add(valueMeaning);
-                b.AddRange(randomizerModifier.Serialize());
+                b.AddRange(randomizerModifier.Serialize(wd));
                 return b;
             }
         }
@@ -1809,7 +1869,7 @@ namespace WwiseBankConverter
                 max = ReadSingle(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(_base));
@@ -1832,10 +1892,10 @@ namespace WwiseBankConverter
                 targetStateID = ReadUInt32(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(GetBytes(stateGroupID));
                 b.AddRange(GetBytes(targetStateID));
                 return b;
@@ -1859,13 +1919,13 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 exceptionListSize = (ulong)listElementException.Count;
                 b.AddRange(GetVariableIntBytes(exceptionListSize));
                 foreach (WwiseObjectIDext woid in listElementException)
-                    b.AddRange(woid.Serialize());
+                    b.AddRange(woid.Serialize(wd));
                 return b;
             }
         }
@@ -1881,7 +1941,7 @@ namespace WwiseBankConverter
                 isBus = ReadUInt8(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(id));
@@ -1907,13 +1967,13 @@ namespace WwiseBankConverter
                 exceptParams.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.Add(fadeCurve);
-                b.AddRange(gameParameterActionSpecificParams.Serialize());
-                b.AddRange(exceptParams.Serialize());
+                b.AddRange(gameParameterActionSpecificParams.Serialize(wd));
+                b.AddRange(exceptParams.Serialize(wd));
                 return b;
             }
         }
@@ -1932,12 +1992,12 @@ namespace WwiseBankConverter
                 rangedParameter.Deserialize(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.Add(bypassTransition);
                 b.Add(valueMeaning);
-                b.AddRange(rangedParameter.Serialize());
+                b.AddRange(rangedParameter.Serialize(wd));
                 return b;
             }
         }
@@ -1955,7 +2015,7 @@ namespace WwiseBankConverter
                 max = ReadSingle(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(_base));
@@ -1978,10 +2038,10 @@ namespace WwiseBankConverter
                 switchStateID = ReadUInt32(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(GetBytes(switchGroupID));
                 b.AddRange(GetBytes(switchStateID));
                 return b;
@@ -2005,7 +2065,7 @@ namespace WwiseBankConverter
                     actionIDs.Add(ReadUInt32(wd));
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
                 actionListSize = (ulong)actionIDs.Count;
@@ -2015,7 +2075,7 @@ namespace WwiseBankConverter
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -2070,10 +2130,10 @@ namespace WwiseBankConverter
                 playList.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
-                b0.AddRange(nodeBaseParams.Serialize());
+                b0.AddRange(nodeBaseParams.Serialize(wd));
                 b0.AddRange(GetBytes(loopCount));
                 b0.AddRange(GetBytes(loopModMin));
                 b0.AddRange(GetBytes(loopModMax));
@@ -2092,12 +2152,12 @@ namespace WwiseBankConverter
                     isGlobal
                 };
                 b0.Add(GetByte(flags));
-                b0.AddRange(children.Serialize());
-                b0.AddRange(playList.Serialize());
+                b0.AddRange(children.Serialize(wd));
+                b0.AddRange(playList.Serialize(wd));
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -2120,13 +2180,13 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 playListItem = (ushort)items.Count;
                 b.AddRange(GetBytes(playListItem));
                 foreach (PlaylistItem pli in items)
-                    b.AddRange(pli.Serialize());
+                    b.AddRange(pli.Serialize(wd));
                 return b;
             }
         }
@@ -2142,7 +2202,7 @@ namespace WwiseBankConverter
                 weight = ReadInt32(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(playID));
@@ -2194,27 +2254,27 @@ namespace WwiseBankConverter
                 }
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
-                b0.AddRange(nodeBaseParams.Serialize());
+                b0.AddRange(nodeBaseParams.Serialize(wd));
                 b0.Add(groupType);
                 b0.AddRange(GetBytes(groupID));
                 b0.AddRange(GetBytes(defaultSwitch));
                 b0.Add(isContinuousValidation);
-                b0.AddRange(children.Serialize());
+                b0.AddRange(children.Serialize(wd));
                 switchGroupsCount = (uint)switchList.Count;
                 b0.AddRange(GetBytes(switchGroupsCount));
                 foreach (SwitchPackage sp in switchList)
-                    b0.AddRange(sp.Serialize());
+                    b0.AddRange(sp.Serialize(wd));
                 switchParamsCount = (uint)paramList.Count;
                 b0.AddRange(GetBytes(switchParamsCount));
                 foreach (SwitchNodeParams snp in paramList)
-                    b0.AddRange(snp.Serialize());
+                    b0.AddRange(snp.Serialize(wd));
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -2236,7 +2296,7 @@ namespace WwiseBankConverter
                     nodeIDs.Add(ReadUInt32(wd));
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(switchID));
@@ -2268,7 +2328,7 @@ namespace WwiseBankConverter
                 fadeInTime = ReadInt32(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(nodeID));
@@ -2299,15 +2359,15 @@ namespace WwiseBankConverter
                 children.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
-                b0.AddRange(nodeBaseParams.Serialize());
-                b0.AddRange(children.Serialize());
+                b0.AddRange(nodeBaseParams.Serialize(wd));
+                b0.AddRange(children.Serialize(wd));
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -2326,7 +2386,7 @@ namespace WwiseBankConverter
                     childIDs.Add(ReadUInt32(wd));
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 childIDs.Sort();
 
@@ -2376,26 +2436,26 @@ namespace WwiseBankConverter
                 }
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
                 b0.AddRange(GetBytes(fxParams.fxID));
                 b0.AddRange(GetBytes(fxParams.size));
-                b0.AddRange(fxParams.Serialize());
+                b0.AddRange(fxParams.Serialize(wd));
                 bankDataCount = (byte)media.Count;
                 b0.Add(bankDataCount);
                 foreach (Unk u in media)
-                    b0.AddRange(u.Serialize());
-                b0.AddRange(initialRTPC.Serialize());
-                b0.AddRange(stateChunk.Serialize());
+                    b0.AddRange(u.Serialize(wd));
+                b0.AddRange(initialRTPC.Serialize(wd));
+                b0.AddRange(stateChunk.Serialize(wd));
                 valuesCount = (ushort)propertyValues.Count;
                 b0.AddRange(GetBytes(valuesCount));
                 foreach (PluginPropertyValue ppv in propertyValues)
-                    b0.AddRange(ppv.Serialize());
+                    b0.AddRange(ppv.Serialize(wd));
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -2425,7 +2485,7 @@ namespace WwiseBankConverter
                 return fxp;
             }
 
-            public abstract IEnumerable<byte> Serialize();
+            public abstract IEnumerable<byte> Serialize(WwiseData wd);
         }
 
         public class FXParamsSpecifiedConcreteClassConverter : DefaultContractResolver
@@ -2490,11 +2550,11 @@ namespace WwiseBankConverter
                 processLFE = ReadUInt8(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 foreach (EQModuleParams eqmp in band)
-                    b.AddRange(eqmp.Serialize());
+                    b.AddRange(eqmp.Serialize(wd));
                 b.AddRange(GetBytes(outputLevel));
                 b.Add(processLFE);
                 return b;
@@ -2518,7 +2578,7 @@ namespace WwiseBankConverter
                 onOff = ReadUInt8(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(filterType));
@@ -2546,12 +2606,12 @@ namespace WwiseBankConverter
                 algorithmTunings.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(rtpcParams.Serialize());
-                b.AddRange(invariantParams.Serialize());
-                b.AddRange(algorithmTunings.Serialize());
+                b.AddRange(rtpcParams.Serialize(wd));
+                b.AddRange(invariantParams.Serialize(wd));
+                b.AddRange(algorithmTunings.Serialize(wd));
                 return b;
             }
         }
@@ -2603,7 +2663,7 @@ namespace WwiseBankConverter
                 reverbLevel = ReadSingle(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(decayTime));
@@ -2671,7 +2731,7 @@ namespace WwiseBankConverter
                 inputLFELevel = ReadSingle(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.Add(enableEarlyReflections);
@@ -2724,7 +2784,7 @@ namespace WwiseBankConverter
                 reverbUnitInputDelayRmdPerc = ReadSingle(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(densityDelayMin));
@@ -2783,7 +2843,7 @@ namespace WwiseBankConverter
                 nonRTPCProcessLFE = ReadUInt8(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(nonRTPCDelayTime));
@@ -2832,7 +2892,7 @@ namespace WwiseBankConverter
                 nonRTPCGameParamID = ReadUInt32(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(rtpcAttack));
@@ -2861,7 +2921,7 @@ namespace WwiseBankConverter
                 value = ReadSingle(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetVariableIntBytes(propertyID));
@@ -2913,27 +2973,27 @@ namespace WwiseBankConverter
                 stateChunk.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
                 b0.AddRange(GetBytes(overrideBusId));
                 if (overrideBusId == 0)
                     b0.AddRange(GetBytes(idDeviceShareset));
-                b0.AddRange(busInitialParams.Serialize());
+                b0.AddRange(busInitialParams.Serialize(wd));
                 b0.AddRange(GetBytes(recoveryTime));
                 b0.AddRange(GetBytes(maxDuckVolume));
                 ducksCount = (uint)toDuckList.Count;
                 b0.AddRange(GetBytes(ducksCount));
                 foreach (DuckInfo di in toDuckList)
-                    b0.AddRange(di.Serialize());
-                b0.AddRange(busInitialFxParams.Serialize());
+                    b0.AddRange(di.Serialize(wd));
+                b0.AddRange(busInitialFxParams.Serialize(wd));
                 b0.Add(overrideAttachmentParams);
-                b0.AddRange(initialRTPC.Serialize());
-                b0.AddRange(stateChunk.Serialize());
+                b0.AddRange(initialRTPC.Serialize(wd));
+                b0.AddRange(stateChunk.Serialize(wd));
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -2973,12 +3033,12 @@ namespace WwiseBankConverter
                 hdrReleaseModeExponential = flags1[1];
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(propBundle0.Serialize());
-                b.AddRange(positioningParams.Serialize());
-                b.AddRange(auxParams.Serialize());
+                b.AddRange(propBundle0.Serialize(wd));
+                b.AddRange(positioningParams.Serialize(wd));
+                b.AddRange(auxParams.Serialize(wd));
                 bool[] flags0 = {
                     killNewest,
                     useVirtualBehavior,
@@ -3016,7 +3076,7 @@ namespace WwiseBankConverter
                 targetProp = ReadUInt8(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(busID));
@@ -3055,7 +3115,7 @@ namespace WwiseBankConverter
                 IsShareSet0 = ReadUInt8(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 if (fxChunk != null)
@@ -3065,7 +3125,7 @@ namespace WwiseBankConverter
                 {
                     b.Add(bitsFXBypass);
                     foreach (FXChunk fxc in fxChunk)
-                        b.AddRange(fxc.Serialize());
+                        b.AddRange(fxc.Serialize(wd));
                 }
                 b.AddRange(GetBytes(fxID0));
                 b.Add(IsShareSet0);
@@ -3088,7 +3148,7 @@ namespace WwiseBankConverter
                 isRendered = ReadUInt8(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.Add(fxIndex);
@@ -3126,20 +3186,20 @@ namespace WwiseBankConverter
                 isContinuousValidation = ReadUInt8(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
-                b0.AddRange(nodeBaseParams.Serialize());
-                b0.AddRange(children.Serialize());
+                b0.AddRange(nodeBaseParams.Serialize(wd));
+                b0.AddRange(children.Serialize(wd));
                 layersCount = (uint)layers.Count;
                 b0.AddRange(GetBytes(layersCount));
                 foreach (Layer l in layers)
-                    b0.AddRange(l.Serialize());
+                    b0.AddRange(l.Serialize(wd));
                 b0.Add(isContinuousValidation);
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -3157,11 +3217,11 @@ namespace WwiseBankConverter
                 layerInitialValues.Deserialize(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(layerID));
-                b.AddRange(layerInitialValues.Serialize());
+                b.AddRange(layerInitialValues.Serialize(wd));
                 return b;
             }
         }
@@ -3190,16 +3250,16 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(initialRTPC.Serialize());
+                b.AddRange(initialRTPC.Serialize(wd));
                 b.AddRange(GetBytes(rtpcID));
                 b.Add(rtpcType);
                 assocCount = (uint)assocs.Count;
                 b.AddRange(GetBytes(assocCount));
                 foreach (AssociatedChildData acd in assocs)
-                    b.AddRange(acd.Serialize());
+                    b.AddRange(acd.Serialize(wd));
                 return b;
             }
         }
@@ -3223,14 +3283,14 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(associatedChildID));
                 curveSize = (uint)pRTPCMgr.Count;
                 b.AddRange(GetBytes(curveSize));
                 foreach (RTPCGraphPoint rtpcgp in pRTPCMgr)
-                    b.AddRange(rtpcgp.Serialize());
+                    b.AddRange(rtpcgp.Serialize(wd));
                 return b;
             }
         }
@@ -3259,19 +3319,19 @@ namespace WwiseBankConverter
                 }
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
-                b0.AddRange(musicNodeParams.Serialize());
+                b0.AddRange(musicNodeParams.Serialize(wd));
                 b0.AddRange(GetBytes(duration));
                 markersCount = (uint)arrayMarkers.Count;
                 b0.AddRange(GetBytes(markersCount));
                 foreach (MusicMarkerWwise mmw in arrayMarkers)
-                    b0.AddRange(mmw.Serialize());
+                    b0.AddRange(mmw.Serialize(wd));
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -3312,7 +3372,7 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 bool[] flags = { false,
@@ -3321,14 +3381,14 @@ namespace WwiseBankConverter
                     midiTargetTypeBus
                 };
                 b.Add(GetByte(flags));
-                b.AddRange(nodeBaseParams.Serialize());
-                b.AddRange(children.Serialize());
-                b.AddRange(meterInfo.Serialize());
+                b.AddRange(nodeBaseParams.Serialize(wd));
+                b.AddRange(children.Serialize(wd));
+                b.AddRange(meterInfo.Serialize(wd));
                 b.Add(meterInfoFlag);
                 stingersCount = (uint)stingers.Count;
                 b.AddRange(GetBytes(stingersCount));
                 foreach (Unk u in stingers)
-                    b.AddRange(u.Serialize());
+                    b.AddRange(u.Serialize(wd));
                 return b;
             }
         }
@@ -3350,7 +3410,7 @@ namespace WwiseBankConverter
                 timeSigBeatValue = ReadUInt8(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(gridPeriod));
@@ -3375,7 +3435,7 @@ namespace WwiseBankConverter
                 stringSize = ReadUInt32(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(id));
@@ -3451,7 +3511,7 @@ namespace WwiseBankConverter
                 lookAheadTime = ReadInt32(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
                 bool[] flags = { false,
@@ -3463,27 +3523,27 @@ namespace WwiseBankConverter
                 sourceCount = (uint)source.Count;
                 b0.AddRange(GetBytes(sourceCount));
                 foreach (BankSourceData bsd in source)
-                    b0.AddRange(bsd.Serialize());
+                    b0.AddRange(bsd.Serialize(wd));
                 playlistItemCount = (uint)playlist.Count;
                 b0.AddRange(GetBytes(playlistItemCount));
                 foreach (TrackSrcInfo tsi in playlist)
-                    b0.AddRange(tsi.Serialize());
+                    b0.AddRange(tsi.Serialize(wd));
                 b0.AddRange(GetBytes(subTrackCount));
                 clipAutomationItemCount = (uint)items.Count;
                 b0.AddRange(GetBytes(clipAutomationItemCount));
                 foreach (ClipAutomation ca in items)
-                    b0.AddRange(ca.Serialize());
-                b0.AddRange(nodeBaseParams.Serialize());
+                    b0.AddRange(ca.Serialize(wd));
+                b0.AddRange(nodeBaseParams.Serialize(wd));
                 b0.Add(trackType);
                 if (switchParams != null)
-                    b0.AddRange(switchParams.Serialize());
+                    b0.AddRange(switchParams.Serialize(wd));
                 if (transParams != null)
-                    b0.AddRange(transParams.Serialize());
+                    b0.AddRange(transParams.Serialize(wd));
                 b0.AddRange(GetBytes(lookAheadTime));
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -3510,7 +3570,7 @@ namespace WwiseBankConverter
                 srcDuration = ReadDouble(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(trackID));
@@ -3545,7 +3605,7 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(clipIndex));
@@ -3553,7 +3613,7 @@ namespace WwiseBankConverter
                 pointsCount = (uint)graphPoints.Count;
                 b.AddRange(GetBytes(pointsCount));
                 foreach (RTPCGraphPoint rtpcgp in graphPoints)
-                    b.AddRange(rtpcgp.Serialize());
+                    b.AddRange(rtpcgp.Serialize(wd));
                 return b;
             }
         }
@@ -3581,7 +3641,7 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.Add(groupType);
@@ -3590,7 +3650,7 @@ namespace WwiseBankConverter
                 switchAssocCount = (uint)switchAssoc.Count;
                 b.AddRange(GetBytes(switchAssocCount));
                 foreach (TrackSwitchAssoc tsa in switchAssoc)
-                    b.AddRange(tsa.Serialize());
+                    b.AddRange(tsa.Serialize(wd));
                 return b;
             }
         }
@@ -3604,7 +3664,7 @@ namespace WwiseBankConverter
                 switchAssoc = ReadUInt32(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 return GetBytes(switchAssoc);
             }
@@ -3627,13 +3687,13 @@ namespace WwiseBankConverter
                 destFadeParams.Deserialize(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(srcFadeParams.Serialize());
+                b.AddRange(srcFadeParams.Serialize(wd));
                 b.AddRange(GetBytes(syncType));
                 b.AddRange(GetBytes(cueFilterHash));
-                b.AddRange(destFadeParams.Serialize());
+                b.AddRange(destFadeParams.Serialize(wd));
                 return b;
             }
         }
@@ -3651,7 +3711,7 @@ namespace WwiseBankConverter
                 fadeOffset = ReadInt32(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(transitionTime));
@@ -3695,21 +3755,21 @@ namespace WwiseBankConverter
                 decisionTree.DeserializeChildren(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
-                b0.AddRange(musicTransNodeParams.Serialize());
+                b0.AddRange(musicTransNodeParams.Serialize(wd));
                 b0.Add(isContinuePlayback);
                 b0.AddRange(GetBytes(treeDepth));
                 foreach (GameSync gs in arguments)
-                    b0.AddRange(gs.Serialize());
+                    b0.AddRange(gs.Serialize(wd));
                 foreach (GameSync gs in arguments)
                     b0.AddRange(gs.SerializeGroupType());
 
                 List<byte> b1 = new();
                 decisionTree.childrenIdx = 1;
-                b1.AddRange(decisionTree.Serialize());
-                b1.AddRange(decisionTree.SerializeChildren());
+                b1.AddRange(decisionTree.Serialize(wd));
+                b1.AddRange(decisionTree.SerializeChildren(wd));
                 treeDataSize = (uint)b1.Count;
                 b0.AddRange(GetBytes(treeDataSize));
 
@@ -3718,7 +3778,7 @@ namespace WwiseBankConverter
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -3739,7 +3799,7 @@ namespace WwiseBankConverter
                 groupType = ReadUInt8(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 return GetBytes(group);
             }
@@ -3794,7 +3854,7 @@ namespace WwiseBankConverter
                     n.DeserializeChildren(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 nodes.Sort((o0, o1) => o0.key.CompareTo(o1.key));
 
@@ -3813,7 +3873,7 @@ namespace WwiseBankConverter
                 return b;
             }
 
-            public IEnumerable<byte> SerializeChildren()
+            public IEnumerable<byte> SerializeChildren(WwiseData wd)
             {
                 List<byte> b = new();
                 if (level == 0)
@@ -3823,11 +3883,11 @@ namespace WwiseBankConverter
                 {
                     if (n.level > 0)
                         n.childrenIdx = (ushort)nodeIdx;
-                    b.AddRange(n.Serialize());
+                    b.AddRange(n.Serialize(wd));
                     nodeIdx += n.GetIdxIncrement();
                 }
                 foreach (Node n in nodes)
-                    b.AddRange(n.SerializeChildren());
+                    b.AddRange(n.SerializeChildren(wd));
                 return b;
             }
 
@@ -3865,20 +3925,20 @@ namespace WwiseBankConverter
                 }
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
-                b0.AddRange(musicTransNodeParams.Serialize());
+                b0.AddRange(musicTransNodeParams.Serialize(wd));
                 playlistItemsCount = 0;
                 foreach (MusicRanSeqPlaylistItem mrspi in playList)
                     playlistItemsCount += 1 + (uint)mrspi.GetChildrenCount();
                 b0.AddRange(GetBytes(playlistItemsCount));
                 foreach (MusicRanSeqPlaylistItem mrspi in playList)
-                    b0.AddRange(mrspi.Serialize());
+                    b0.AddRange(mrspi.Serialize(wd));
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -3904,14 +3964,14 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
-                b.AddRange(musicNodeParams.Serialize());
+                b.AddRange(musicNodeParams.Serialize(wd));
                 rulesCount = (uint)rules.Count;
                 b.AddRange(GetBytes(rulesCount));
                 foreach (MusicTransitionRule mtr in rules)
-                    b.AddRange(mtr.Serialize());
+                    b.AddRange(mtr.Serialize(wd));
                 return b;
             }
         }
@@ -3949,7 +4009,7 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 srcIDs.Sort();
                 dstIDs.Sort();
@@ -3963,11 +4023,11 @@ namespace WwiseBankConverter
                 b.AddRange(GetBytes(dstCount));
                 foreach (uint i in dstIDs)
                     b.AddRange(GetBytes(i));
-                b.AddRange(musicTransSrcRule.Serialize());
-                b.AddRange(musicTransDstRule.Serialize());
+                b.AddRange(musicTransSrcRule.Serialize(wd));
+                b.AddRange(musicTransDstRule.Serialize(wd));
                 b.Add(allocTransObjectFlag);
                 if (musicTransitionObject != null)
-                    b.AddRange(musicTransitionObject.Serialize());
+                    b.AddRange(musicTransitionObject.Serialize(wd));
                 return b;
             }
         }
@@ -3991,7 +4051,7 @@ namespace WwiseBankConverter
                 playPostExit = ReadUInt8(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(transitionTime));
@@ -4029,7 +4089,7 @@ namespace WwiseBankConverter
                 destMatchSourceCueName = ReadUInt8(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(transitionTime));
@@ -4064,12 +4124,12 @@ namespace WwiseBankConverter
                 playPostExit = ReadUInt8(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(segmentID));
-                b.AddRange(fadeInParams.Serialize());
-                b.AddRange(fadeOutParams.Serialize());
+                b.AddRange(fadeInParams.Serialize(wd));
+                b.AddRange(fadeOutParams.Serialize(wd));
                 b.Add(playPreEntry);
                 b.Add(playPostExit);
                 return b;
@@ -4114,7 +4174,7 @@ namespace WwiseBankConverter
                 }
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(segmentID));
@@ -4130,7 +4190,7 @@ namespace WwiseBankConverter
                 b.Add(isUsingWeight);
                 b.Add(isShuffle);
                 foreach (MusicRanSeqPlaylistItem mrspi in playList)
-                    b.AddRange(mrspi.Serialize());
+                    b.AddRange(mrspi.Serialize(wd));
                 return b;
             }
 
@@ -4176,23 +4236,23 @@ namespace WwiseBankConverter
                 initialRTPC.Deserialize(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
                 isConeEnabled = (byte)(coneParams == null ? 0 : 1);
                 b0.Add(isConeEnabled);
                 if (coneParams != null)
-                    b0.AddRange(coneParams.Serialize());
+                    b0.AddRange(coneParams.Serialize(wd));
                 b0.AddRange(GetBytes(curveToUse));
                 curvesCount = (byte)curves.Count;
                 b0.Add(curvesCount);
                 foreach (ConversionTable ct in curves)
-                    b0.AddRange(ct.Serialize());
-                b0.AddRange(initialRTPC.Serialize());
+                    b0.AddRange(ct.Serialize(wd));
+                b0.AddRange(initialRTPC.Serialize(wd));
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -4215,7 +4275,7 @@ namespace WwiseBankConverter
                 hiPass = ReadSingle(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(insideDegrees));
@@ -4246,14 +4306,14 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.Add(scaling);
                 size = (ushort)pRTPCMgr.Count;
                 b.AddRange(GetBytes(size));
                 foreach (RTPCGraphPoint rtpcgp in pRTPCMgr)
-                    b.AddRange(rtpcgp.Serialize());
+                    b.AddRange(rtpcgp.Serialize(wd));
                 return b;
             }
         }
@@ -4271,7 +4331,7 @@ namespace WwiseBankConverter
                 interp = ReadUInt32(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(from));
@@ -4320,7 +4380,7 @@ namespace WwiseBankConverter
                 }
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
                 b0.AddRange(GetBytes(fxID));
@@ -4328,17 +4388,17 @@ namespace WwiseBankConverter
                 bankDataCount = (byte)media.Count;
                 b0.Add(bankDataCount);
                 foreach (Unk u in media)
-                    b0.AddRange(u.Serialize());
-                b0.AddRange(initialRTPC.Serialize());
-                b0.AddRange(stateChunk.Serialize());
+                    b0.AddRange(u.Serialize(wd));
+                b0.AddRange(initialRTPC.Serialize(wd));
+                b0.AddRange(stateChunk.Serialize(wd));
                 valuesCount = (ushort)propertyValues.Count;
                 b0.AddRange(GetBytes(valuesCount));
                 foreach (Unk u in propertyValues)
-                    b0.AddRange(u.Serialize());
+                    b0.AddRange(u.Serialize(wd));
                 sectionSize = (uint)(b0.Count + 4);
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -4363,17 +4423,17 @@ namespace WwiseBankConverter
                 }
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
                 count = (uint)pluginList.Count;
                 b0.AddRange(GetBytes(count));
                 foreach (Plugin p in pluginList)
-                    b0.AddRange(p.Serialize());
+                    b0.AddRange(p.Serialize(wd));
                 chunkSize = (uint)b0.Count;
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -4392,7 +4452,7 @@ namespace WwiseBankConverter
                 dllName = ReadString(wd, (int)stringSize);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(pluginID));
@@ -4415,7 +4475,7 @@ namespace WwiseBankConverter
                 customPlatformName = ReadString(wd, (int)stringSize);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
                 b0.AddRange(GetBytes(stringSize));
@@ -4423,7 +4483,7 @@ namespace WwiseBankConverter
                 chunkSize = (uint)b0.Count;
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -4484,7 +4544,7 @@ namespace WwiseBankConverter
                 }
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b0 = new();
                 b0.AddRange(GetBytes(volumeThreshold));
@@ -4493,23 +4553,23 @@ namespace WwiseBankConverter
                 stateGroupsCount = (uint)stateGroups.Count;
                 b0.AddRange(GetBytes(stateGroupsCount));
                 foreach (StateGroup sg in stateGroups)
-                    b0.AddRange(sg.Serialize());
+                    b0.AddRange(sg.Serialize(wd));
                 switchGroupsCount = (uint)items.Count;
                 b0.AddRange(GetBytes(switchGroupsCount));
                 foreach (SwitchGroups sg in items)
-                    b0.AddRange(sg.Serialize());
+                    b0.AddRange(sg.Serialize(wd));
                 paramsCount = (uint)pRTPCMgr.Count;
                 b0.AddRange(GetBytes(paramsCount));
                 foreach (RTPCRamping rtpcr in pRTPCMgr)
-                    b0.AddRange(rtpcr.Serialize());
+                    b0.AddRange(rtpcr.Serialize(wd));
                 texturesCount = (uint)acousticTextures.Count;
                 b0.AddRange(GetBytes(texturesCount));
                 foreach (Unk u in acousticTextures)
-                    b0.AddRange(u.Serialize());
+                    b0.AddRange(u.Serialize(wd));
                 chunkSize = (uint)b0.Count;
 
                 List<byte> b = new();
-                b.AddRange(base.Serialize());
+                b.AddRange(base.Serialize(wd));
                 b.AddRange(b0);
                 return b;
             }
@@ -4537,7 +4597,7 @@ namespace WwiseBankConverter
                 }
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(stateGroupID));
@@ -4545,7 +4605,7 @@ namespace WwiseBankConverter
                 transitionsCount = (uint)mapTransitions.Count;
                 b.AddRange(GetBytes(transitionsCount));
                 foreach (StateTransition st in mapTransitions)
-                    b.AddRange(st.Serialize());
+                    b.AddRange(st.Serialize(wd));
                 return b;
             }
         }
@@ -4563,7 +4623,7 @@ namespace WwiseBankConverter
                 transitionTime = ReadUInt32(wd);
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(stateFrom));
@@ -4596,7 +4656,7 @@ namespace WwiseBankConverter
                 }
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(switchGroupID));
@@ -4605,7 +4665,7 @@ namespace WwiseBankConverter
                 size = (uint)switchMgr.Count;
                 b.AddRange(GetBytes(size));
                 foreach (RTPCGraphPoint rtcpgp in switchMgr)
-                    b.AddRange(rtcpgp.Serialize());
+                    b.AddRange(rtcpgp.Serialize(wd));
                 return b;
             }
         }
@@ -4630,7 +4690,7 @@ namespace WwiseBankConverter
                 bindToBuiltInParam = ReadUInt8(wd);
             }
 
-            public override IEnumerable<byte> Serialize()
+            public override IEnumerable<byte> Serialize(WwiseData wd)
             {
                 List<byte> b = new();
                 b.AddRange(GetBytes(rtpcID));
@@ -4650,7 +4710,7 @@ namespace WwiseBankConverter
                 throw new NotImplementedException();
             }
 
-            public IEnumerable<byte> Serialize()
+            public IEnumerable<byte> Serialize(WwiseData wd)
             {
                 throw new NotImplementedException();
             }
